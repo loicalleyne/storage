@@ -79,6 +79,38 @@ func (b GoogleCSBackend) ListObjects(prefix string) ([]Object, error) {
 	return objects, nil
 }
 
+// ListFolderObjects lists all objects in Google Cloud Storage bucket, at prefix
+// Allows listing objects in subfolders of prefix folder that only contains
+// subfolders but no objects
+func (b GoogleCSBackend) ListFolderObjects(prefix string) ([]Object, error) {
+	var objects []Object
+	prefix = pathutil.Join(b.Prefix, prefix)
+	listQuery := &storage.Query{
+		Prefix: prefix,
+	}
+	it := b.Client.Objects(b.Context, listQuery)
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return objects, err
+		}
+		path := removePrefixFromObjectPath(prefix, attrs.Name)
+		if path == "" {
+			continue
+		}
+		object := Object{
+			Path:         path,
+			Content:      []byte{},
+			LastModified: attrs.Updated,
+		}
+		objects = append(objects, object)
+	}
+	return objects, nil
+}
+
 // GetObject retrieves an object from Google Cloud Storage bucket, at prefix
 func (b GoogleCSBackend) GetObject(path string) (Object, error) {
 	var object Object
